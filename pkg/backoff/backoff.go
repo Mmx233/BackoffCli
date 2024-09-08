@@ -9,18 +9,19 @@ import (
 
 // Backoff 错误重试 积分退避算法
 type Backoff struct {
-	Content func(ctx context.Context) error
+	retry time.Duration
 
-	retry    time.Duration
-	maxRetry time.Duration
-
+	conf    Conf
 	running *atomic.Bool
 }
 
 type Conf struct {
 	Content func(ctx context.Context) error
-	// 最大重试等待时间
+
+	// MaxRetryDelay maximum retry wait time, default 20 minutes
 	MaxRetryDelay time.Duration
+	// RetryGrowthFactor determines how many times the retry time doubles, default 1
+	RetryGrowthFactor int
 }
 
 func New(c Conf) Backoff {
@@ -30,12 +31,14 @@ func New(c Conf) Backoff {
 	if c.MaxRetryDelay == 0 {
 		c.MaxRetryDelay = time.Minute * 20
 	}
+	if c.RetryGrowthFactor <= 0 {
+		c.RetryGrowthFactor = 1
+	}
 
 	return Backoff{
-		Content:  c.Content,
-		retry:    time.Second,
-		maxRetry: c.MaxRetryDelay,
-		running:  &atomic.Bool{},
+		retry:   time.Second,
+		conf:    c,
+		running: &atomic.Bool{},
 	}
 }
 
@@ -54,7 +57,7 @@ func (a Backoff) Worker(ctx context.Context) {
 		errChan := make(chan error)
 		go func() {
 			defer tools.Recover()
-			errChan <- a.Content(ctx)
+			errChan <- a.conf.Content(ctx)
 		}()
 		if err := <-errChan; err == nil {
 			break
@@ -67,10 +70,10 @@ func (a Backoff) Worker(ctx context.Context) {
 			// continue retry
 		}
 
-		if a.retry < a.maxRetry {
-			a.retry = a.retry << 1
-			if a.retry > a.maxRetry {
-				a.retry = a.maxRetry
+		if a.retry < a.conf.MaxRetryDelay {
+			a.retry = a.retry << a.conf.RetryGrowthFactor
+			if a.retry > a.conf.MaxRetryDelay {
+				a.retry = a.conf.MaxRetryDelay
 			}
 		}
 	}
