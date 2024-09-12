@@ -2,8 +2,8 @@ package backoff
 
 import (
 	"context"
-	"github.com/Mmx233/BackoffCli/tools"
 	log "github.com/sirupsen/logrus"
+	"runtime"
 	"sync/atomic"
 	"time"
 )
@@ -71,7 +71,15 @@ func (a Backoff) Worker(ctx context.Context) {
 	for {
 		errChan := make(chan error)
 		go func() {
-			defer tools.Recover()
+			defer func() {
+				if p := recover(); p != nil {
+					var buf [4096]byte
+					errChan <- &ErrorPanic{
+						Err:   p,
+						Stack: string(buf[:runtime.Stack(buf[:], false)]),
+					}
+				}
+			}()
 			errChan <- a.Config.Fn(ctx)
 		}()
 		if err := <-errChan; err == nil {
