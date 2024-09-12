@@ -24,6 +24,8 @@ type Conf struct {
 	InitialDuration time.Duration
 	// MaxDuration maximum retry wait time, default 20 minutes
 	MaxDuration time.Duration
+	// MaxRetry default unlimited
+	MaxRetry uint
 
 	// $Next = ($Last + InterConstFactor) * (2 ^ ExponentFactor) + OuterConstFactor
 
@@ -73,7 +75,13 @@ func (b Backoff) Worker(ctx context.Context) {
 	logger := b.Config.Logger.WithContext(ctx)
 	logger.Debugln("worker start")
 
+	retry := b.Config.MaxRetry
+	if retry != 0 {
+		retry += 1
+	}
+
 	wait := b.Config.InitialDuration
+
 	for {
 		errChan := make(chan error)
 		go func() {
@@ -91,11 +99,16 @@ func (b Backoff) Worker(ctx context.Context) {
 			errChan <- b.Config.Fn(ctx)
 		}()
 		if err := <-errChan; err == nil {
+			logger.Debugln("task succeed")
 			break
 		} else {
-			logger.WithFields(log.Fields{
+			logger := logger.WithFields(log.Fields{
 				"wait": fmt.Sprintf("%.0fs", wait.Seconds()),
-			}).Errorf("failed with error: %v", err)
+			})
+			if retry != 0 {
+				logger = logger.WithField("retry", retry-1)
+			}
+			logger.Errorf("failed with error: %v", err)
 		}
 
 		select {
@@ -104,6 +117,14 @@ func (b Backoff) Worker(ctx context.Context) {
 			return
 		case <-time.After(wait):
 			// continue retry
+		}
+
+		if retry != 0 {
+			retry -= 1
+			if retry == 0 {
+				logger.Errorln("max retry exceeded")
+				break
+			}
 		}
 
 		if wait < b.Config.MaxDuration {
