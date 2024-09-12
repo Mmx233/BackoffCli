@@ -64,16 +64,17 @@ func NewInstance(conf Conf) Backoff {
 
 func (b Backoff) Start(ctx context.Context) error {
 	if b.running.CompareAndSwap(false, true) {
-		go b.Worker(ctx)
+		go func() {
+			defer b.running.Store(false)
+			_ = b.Run(ctx)
+		}()
 		return nil
 	}
 	return &ErrorAlreadyRunning{}
 }
 
-func (b Backoff) Worker(ctx context.Context) {
-	defer b.running.Store(false)
+func (b Backoff) Run(ctx context.Context) error {
 	logger := b.Config.Logger.WithContext(ctx)
-	logger.Debugln("worker start")
 
 	retry := b.Config.MaxRetry
 	if retry != 0 {
@@ -81,27 +82,29 @@ func (b Backoff) Worker(ctx context.Context) {
 	}
 
 	wait := b.Config.InitialDuration
+	errChan := make(chan error)
 
 	for {
-		errChan := make(chan error)
 		go func() {
 			if !b.Config.DisableRecover {
 				defer func() {
 					if p := recover(); p != nil {
 						var buf [4096]byte
 						errChan <- &ErrorPanic{
-							Err:   p,
-							Stack: string(buf[:runtime.Stack(buf[:], false)]),
+							Reason: p,
+							Stack:  string(buf[:runtime.Stack(buf[:], false)]),
 						}
 					}
 				}()
 			}
 			errChan <- b.Config.Fn(ctx)
 		}()
-		if err := <-errChan; err == nil {
-			logger.Debugln("task succeed")
-			break
-		} else {
+		err := <-errChan
+		if err == nil {
+			return nil
+		}
+
+		{
 			logger := logger.WithFields(log.Fields{
 				"wait": fmt.Sprintf("%.0fs", wait.Seconds()),
 			})
@@ -113,8 +116,7 @@ func (b Backoff) Worker(ctx context.Context) {
 
 		select {
 		case <-ctx.Done():
-			logger.Infoln("task canceled")
-			return
+			return ctx.Err()
 		case <-time.After(wait):
 			// continue retry
 		}
@@ -123,7 +125,7 @@ func (b Backoff) Worker(ctx context.Context) {
 			retry -= 1
 			if retry == 0 {
 				logger.Errorln("max retry exceeded")
-				break
+				return &ErrorMaxRetryExceeded{LastError: err}
 			}
 		}
 
@@ -134,6 +136,4 @@ func (b Backoff) Worker(ctx context.Context) {
 			}
 		}
 	}
-
-	logger.Debugln("worker quit")
 }

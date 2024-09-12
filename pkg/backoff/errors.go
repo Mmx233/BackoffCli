@@ -9,10 +9,18 @@ func (e ErrorAlreadyRunning) Error() string {
 }
 
 type ErrorPanic struct {
-	Err   any
-	Stack string
+	Reason any
+	Stack  string
 }
 
 func (e ErrorPanic) Error() string {
-	return fmt.Sprintf("panic: %v\n%s", e.Err, e.Stack)
+	return fmt.Sprintf("panic: %v\n%s", e.Reason, e.Stack)
+}
+
+type ErrorMaxRetryExceeded struct {
+	LastError error
+}
+
+func (e ErrorMaxRetryExceeded) Error() string {
+	return "max retry exceeded"
 }
