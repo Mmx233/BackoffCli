@@ -2,6 +2,7 @@ package backoff
 
 import (
 	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"runtime"
 	"sync/atomic"
@@ -46,36 +47,37 @@ func New(c Conf) Backoff {
 	return NewInstance(c)
 }
 
-func NewInstance(c Conf) Backoff {
-	if c.Fn == nil {
+func NewInstance(conf Conf) Backoff {
+	if conf.Fn == nil {
 		panic("content function required")
 	}
-	if c.Logger == nil {
-		c.Logger = log.New()
-		c.Logger.SetLevel(log.ErrorLevel)
+	if conf.Logger == nil {
+		conf.Logger = log.New()
 	}
 	return Backoff{
-		Config:  c,
+		Config:  conf,
 		running: &atomic.Bool{},
 	}
 }
 
-func (a Backoff) Start(ctx context.Context) error {
-	if a.running.CompareAndSwap(false, true) {
-		go a.Worker(ctx)
+func (b Backoff) Start(ctx context.Context) error {
+	if b.running.CompareAndSwap(false, true) {
+		go b.Worker(ctx)
 		return nil
 	}
 	return &ErrorAlreadyRunning{}
 }
 
-func (a Backoff) Worker(ctx context.Context) {
-	defer a.running.Store(false)
+func (b Backoff) Worker(ctx context.Context) {
+	defer b.running.Store(false)
+	logger := b.Config.Logger.WithContext(ctx)
+	logger.Debugln("worker start")
 
-	wait := a.Config.InitialDuration
+	wait := b.Config.InitialDuration
 	for {
 		errChan := make(chan error)
 		go func() {
-			if !a.Config.DisableRecover {
+			if !b.Config.DisableRecover {
 				defer func() {
 					if p := recover(); p != nil {
 						var buf [4096]byte
@@ -86,24 +88,31 @@ func (a Backoff) Worker(ctx context.Context) {
 					}
 				}()
 			}
-			errChan <- a.Config.Fn(ctx)
+			errChan <- b.Config.Fn(ctx)
 		}()
 		if err := <-errChan; err == nil {
 			break
+		} else {
+			logger.WithFields(log.Fields{
+				"wait": fmt.Sprintf("%.0fs", wait.Seconds()),
+			}).Errorf("failed with error: %v", err)
 		}
 
 		select {
 		case <-ctx.Done():
+			logger.Infoln("task canceled")
 			return
 		case <-time.After(wait):
 			// continue retry
 		}
 
-		if wait < a.Config.MaxDuration {
-			wait = (wait+a.Config.InterConstFactor)<<a.Config.ExponentFactor + a.Config.OuterConstFactor
-			if wait > a.Config.MaxDuration {
-				wait = a.Config.MaxDuration
+		if wait < b.Config.MaxDuration {
+			wait = (wait+b.Config.InterConstFactor)<<b.Config.ExponentFactor + b.Config.OuterConstFactor
+			if wait > b.Config.MaxDuration {
+				wait = b.Config.MaxDuration
 			}
 		}
 	}
+
+	logger.Debugln("worker quit")
 }
