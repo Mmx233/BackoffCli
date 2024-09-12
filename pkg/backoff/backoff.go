@@ -51,6 +51,7 @@ func NewInstance(c Conf) Backoff {
 	}
 	if c.Logger == nil {
 		c.Logger = log.New()
+		c.Logger.SetLevel(log.ErrorLevel)
 	}
 	return Backoff{
 		Config:  c,
@@ -67,6 +68,8 @@ func (a Backoff) Start(ctx context.Context) error {
 }
 
 func (a Backoff) Worker(ctx context.Context) {
+	defer a.running.Store(false)
+
 	wait := a.Config.InitialDuration
 	for {
 		errChan := make(chan error)
@@ -100,6 +103,4 @@ func (a Backoff) Worker(ctx context.Context) {
 			}
 		}
 	}
-
-	a.running.Store(false)
 }
