@@ -9,16 +9,19 @@ import (
 	"time"
 )
 
-// Backoff 错误重试 积分退避算法
 type Backoff struct {
 	Config  Conf
 	running *atomic.Bool
 }
 
 type Conf struct {
+	Logger *log.Logger
+
 	Fn             func(ctx context.Context) error
-	Logger         *log.Logger
 	DisableRecover bool
+
+	HealthCheck       func(ctx context.Context) <-chan error
+	HealthCheckAlways bool
 
 	// InitialDuration initial wait time, default 1 second
 	InitialDuration time.Duration
@@ -99,9 +102,27 @@ func (b Backoff) Run(ctx context.Context) error {
 			}
 			errChan <- b.Config.Fn(ctx)
 		}()
-		err := <-errChan
-		if err == nil {
-			return nil
+
+	healthCheck:
+		var healthCheckChan = make(<-chan error)
+		if b.Config.HealthCheck != nil && (b.Config.HealthCheckAlways || wait != b.Config.InitialDuration) {
+			healthCheckChan = b.Config.HealthCheck(ctx)
+		}
+
+		var err error
+		select {
+		case err = <-healthCheckChan:
+			if err == nil {
+				wait = b.Config.InitialDuration
+			} else {
+				b.Config.Logger.Warnf("health check failed: %v", err)
+			}
+			goto healthCheck
+		case err = <-errChan:
+			if err == nil {
+				return nil
+			}
+			// break select
 		}
 
 		{
