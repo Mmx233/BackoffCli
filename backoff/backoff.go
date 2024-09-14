@@ -20,14 +20,19 @@ type Conf struct {
 	Fn             func(ctx context.Context) error
 	DisableRecover bool
 
-	HealthCheck       func(ctx context.Context) <-chan error
+	// HealthCheck func will be called while waiting for Fn returning errors
+	// when wait time have increased. Once Fn returned anything,
+	// the context passed to HealthCheck will be canceled.
+	HealthCheck func(ctx context.Context) <-chan error
+	// If HealthCheckAlways is true, HealthCheck function will be called
+	// what ever current wait time is.
 	HealthCheckAlways bool
 
-	// InitialDuration initial wait time, default 1 second
+	// InitialDuration means initial wait time, default 1 second
 	InitialDuration time.Duration
-	// MaxDuration maximum retry wait time, default 20 minutes
+	// MaxDuration means maximum retry wait time, default 20 minutes
 	MaxDuration time.Duration
-	// MaxRetry default unlimited
+	// MaxRetry, default unlimited
 	MaxRetry uint
 
 	// $Next = ($Last + InterConstFactor) * (2 ^ ExponentFactor) + OuterConstFactor
