@@ -17,6 +17,7 @@ type Backoff struct {
 type Conf struct {
 	Logger *log.Logger
 
+	// Fn, function to run, Required
 	Fn             func(ctx context.Context) error
 	DisableRecover bool
 
