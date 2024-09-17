@@ -11,23 +11,19 @@ import (
 
 type Backoff struct {
 	Config  Conf
-	running *atomic.Bool
+	Fn      func(ctx context.Context) error
+	Running *atomic.Bool
 }
 
 type Conf struct {
-	Logger *log.Logger
+	Logger          *log.Logger
+	DisableRecovery bool
 
-	// Fn, function to run, Required
-	Fn             func(ctx context.Context) error
-	DisableRecover bool
-
-	// HealthCheck func will be called while waiting for Fn returning errors
-	// when wait time have increased. Once Fn returned anything,
-	// the context passed to HealthCheck will be canceled.
-	HealthCheck func(ctx context.Context) <-chan error
-	// If HealthCheckAlways is true, HealthCheck function will be called
-	// what ever current wait time is.
-	HealthCheckAlways bool
+	// NewHealthChecker func will be called while waiting for Fn returning errors.
+	// Once Fn returned anything, the context passed to NewHealthChecker will be canceled.
+	// If error chan return nil, wait time will be reset. Otherwise, the context passed
+	// to Fn and HealthChecker will be canceled.
+	NewHealthChecker func(ctx context.Context) <-chan error
 
 	// InitialDuration means initial wait time, default 1 second
 	InitialDuration time.Duration
@@ -45,7 +41,7 @@ type Conf struct {
 }
 
 // New backoff instance with default values
-func New(c Conf) Backoff {
+func New(fn func(ctx context.Context) error, c Conf) Backoff {
 	if c.InitialDuration == 0 {
 		c.InitialDuration = time.Second
 	}
@@ -55,31 +51,86 @@ func New(c Conf) Backoff {
 	if c.ExponentFactor <= 0 {
 		c.ExponentFactor = 1
 	}
-	return NewInstance(c)
+	return NewInstance(fn, c)
 }
 
-func NewInstance(conf Conf) Backoff {
-	if conf.Fn == nil {
-		panic("content function required")
-	}
+func NewInstance(fn func(ctx context.Context) error, conf Conf) Backoff {
 	if conf.Logger == nil {
 		conf.Logger = log.New()
 	}
 	return Backoff{
 		Config:  conf,
-		running: &atomic.Bool{},
+		Fn:      fn,
+		Running: &atomic.Bool{},
 	}
 }
 
 func (b Backoff) Start(ctx context.Context) error {
-	if b.running.CompareAndSwap(false, true) {
+	if b.Running.CompareAndSwap(false, true) {
 		go func() {
-			defer b.running.Store(false)
+			defer b.Running.Store(false)
 			_ = b.Run(ctx)
 		}()
 		return nil
 	}
 	return &ErrorAlreadyRunning{}
+}
+
+func (b Backoff) _CallHealthCheck(ctx context.Context, cancelFn context.CancelFunc, resetWait chan struct{}) {
+	ctx, cancel := context.WithCancel(ctx)
+	healthCheckChan := b.Config.NewHealthChecker(ctx)
+
+	go func() {
+		defer cancel()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case err := <-healthCheckChan:
+				if err != nil {
+					b.Config.Logger.Warnf("health check failed: %v", err)
+					cancelFn()
+					return
+				}
+				// call reset wait
+				select {
+				case <-ctx.Done():
+					return
+				case resetWait <- struct{}{}:
+				}
+			}
+		}
+	}()
+}
+
+func (b Backoff) _CallFn(ctx context.Context, cancel context.CancelFunc) <-chan error {
+	// set capacity to 1 to avoid goroutine leak
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer cancel()
+
+		if !b.Config.DisableRecovery {
+			defer func() {
+				if p := recover(); p != nil {
+					if len(errChan) == 0 {
+						var buf [4096]byte
+						errChan <- &ErrorPanic{
+							Reason: p,
+							Stack:  string(buf[:runtime.Stack(buf[:], false)]),
+						}
+					}
+				}
+			}()
+		}
+
+		// We need to wait for Fn returning an error anyway.
+		// If context is canceled by HealthCheck or parent,
+		// Fn should terminate waiting on itself.
+		errChan <- b.Fn(ctx)
+	}()
+	return errChan
 }
 
 func (b Backoff) Run(ctx context.Context) error {
@@ -91,39 +142,24 @@ func (b Backoff) Run(ctx context.Context) error {
 	}
 
 	wait := b.Config.InitialDuration
-	errChan := make(chan error)
 
 	for {
-		go func() {
-			if !b.Config.DisableRecover {
-				defer func() {
-					if p := recover(); p != nil {
-						var buf [4096]byte
-						errChan <- &ErrorPanic{
-							Reason: p,
-							Stack:  string(buf[:runtime.Stack(buf[:], false)]),
-						}
-					}
-				}()
-			}
-			errChan <- b.Config.Fn(ctx)
-		}()
+		var resetWait = make(chan struct{})
 
-	healthCheck:
-		var healthCheckChan = make(<-chan error)
-		if b.Config.HealthCheck != nil && (b.Config.HealthCheckAlways || wait != b.Config.InitialDuration) {
-			healthCheckChan = b.Config.HealthCheck(ctx)
+		fnCtx, cancelFn := context.WithCancel(ctx)
+		errChan := b._CallFn(fnCtx, cancelFn)
+		if b.Config.NewHealthChecker != nil {
+			b._CallHealthCheck(fnCtx, cancelFn, resetWait)
 		}
 
+	waitFn:
 		var err error
 		select {
-		case err = <-healthCheckChan:
-			if err == nil {
-				wait = b.Config.InitialDuration
-			} else {
-				b.Config.Logger.Warnf("health check failed: %v", err)
-			}
-			goto healthCheck
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-resetWait:
+			wait = b.Config.InitialDuration
+			goto waitFn
 		case err = <-errChan:
 			if err == nil {
 				return nil
@@ -139,6 +175,7 @@ func (b Backoff) Run(ctx context.Context) error {
 				logger = logger.WithField("retry", retry-1)
 			}
 			logger.Errorf("failed with error: %v", err)
+
 		}
 
 		select {
