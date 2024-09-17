@@ -138,6 +138,7 @@ func (b Backoff) Run(ctx context.Context) error {
 
 	retry := b.Config.MaxRetry
 	if retry != 0 {
+		// add 1 to ignore first try
 		retry += 1
 	}
 
@@ -168,21 +169,17 @@ func (b Backoff) Run(ctx context.Context) error {
 		}
 
 		{
-			logger := logger.WithFields(log.Fields{
+			logger := logger
+			if retry != 0 {
+				logger = logger.WithFields(log.Fields{
+					"rest": retry - 1,
+				})
+			}
+			logger = logger.WithFields(log.Fields{
 				"wait": fmt.Sprintf("%.0fs", wait.Seconds()),
 			})
-			if retry != 0 {
-				logger = logger.WithField("retry", retry-1)
-			}
 			logger.Errorf("failed with error: %v", err)
 
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(wait):
-			// continue retry
 		}
 
 		if retry != 0 {
@@ -191,6 +188,13 @@ func (b Backoff) Run(ctx context.Context) error {
 				logger.Errorln("max retry exceeded")
 				return &ErrorMaxRetryExceeded{LastError: err}
 			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(wait):
+			// continue retry
 		}
 
 		if wait < b.Config.MaxDuration {
