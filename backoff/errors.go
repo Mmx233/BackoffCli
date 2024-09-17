@@ -5,7 +5,7 @@ import "fmt"
 type ErrorAlreadyRunning struct{}
 
 func (e ErrorAlreadyRunning) Error() string {
-	return "Backoff Already Running"
+	return "backoff Already Running"
 }
 
 type ErrorPanic struct {
