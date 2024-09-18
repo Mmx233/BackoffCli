@@ -76,8 +76,10 @@ func (b Backoff) Start(ctx context.Context) error {
 	return &ErrorAlreadyRunning{}
 }
 
-func (b Backoff) _CallHealthCheck(ctx context.Context, cancelFn context.CancelFunc, resetWait chan struct{}) {
+func (b Backoff) _CallHealthCheck(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
+	resetWait, cancelFn := CtxResetWait{}.Must(ctx), CtxCancelFn{}.Must(ctx)
+
 	healthCheckChan := b.Config.NewHealthChecker(ctx)
 
 	go func() {
@@ -104,9 +106,11 @@ func (b Backoff) _CallHealthCheck(ctx context.Context, cancelFn context.CancelFu
 	}()
 }
 
-func (b Backoff) _CallFn(ctx context.Context, cancel context.CancelFunc) <-chan error {
+func (b Backoff) _CallFn(ctx context.Context) <-chan error {
+	ctx, cancel := context.WithCancel(ctx)
 	// set capacity to 1 to avoid goroutine leak
 	errChan := make(chan error, 1)
+	ctx = CtxCancelFn{}.Set(ctx, cancel)
 
 	go func() {
 		defer cancel()
@@ -130,6 +134,10 @@ func (b Backoff) _CallFn(ctx context.Context, cancel context.CancelFunc) <-chan 
 		// Fn should terminate waiting on itself.
 		errChan <- b.Fn(ctx)
 	}()
+
+	if b.Config.NewHealthChecker != nil {
+		b._CallHealthCheck(ctx)
+	}
 	return errChan
 }
 
@@ -146,12 +154,9 @@ func (b Backoff) Run(ctx context.Context) error {
 
 	for {
 		var resetWait = make(chan struct{})
+		ctx := CtxResetWait{}.Set(ctx, resetWait)
 
-		fnCtx, cancelFn := context.WithCancel(ctx)
-		errChan := b._CallFn(fnCtx, cancelFn)
-		if b.Config.NewHealthChecker != nil {
-			b._CallHealthCheck(fnCtx, cancelFn, resetWait)
-		}
+		errChan := b._CallFn(ctx)
 
 	waitFn:
 		var err error
