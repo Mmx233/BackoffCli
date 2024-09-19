@@ -24,3 +24,19 @@ type ErrorMaxRetryExceeded struct {
 func (e ErrorMaxRetryExceeded) Error() string {
 	return "max retry exceeded"
 }
+
+type ErrorUnexpectedHttpStatus struct {
+	HttpStatus int
+}
+
+func (e ErrorUnexpectedHttpStatus) Error() string {
+	return fmt.Sprintf("unexpected http status: %v", e.HttpStatus)
+}
+
+type ErrorKeywordNotFound struct {
+	Keyword string
+}
+
+func (e ErrorKeywordNotFound) Error() string {
+	return fmt.Sprintf("keyword '%s' not found", e.Keyword)
+}
