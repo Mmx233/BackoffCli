@@ -5,14 +5,16 @@ import (
 	"time"
 )
 
-type RegularHealthCheckerConfig struct {
+type ProbeHealthCheckFn func(ctx context.Context) error
+
+type ProbeHealthCheckerConfig struct {
 	CheckInterval    time.Duration
 	InitialDelay     time.Duration
 	SuccessThreshold int
 	FailureThreshold int
 }
 
-func NewRegularHealthChecker(fn func(ctx context.Context) error, conf RegularHealthCheckerConfig) func(ctx context.Context) <-chan error {
+func NewProbeHealthChecker(fn ProbeHealthCheckFn, conf ProbeHealthCheckerConfig) HealthChecker {
 	return func(ctx context.Context) <-chan error {
 		errChan := make(chan error, 1)
 		var success, failure int

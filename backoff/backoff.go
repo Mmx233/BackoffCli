@@ -11,19 +11,22 @@ import (
 
 type Backoff struct {
 	Config  Conf
-	Fn      func(ctx context.Context) error
+	Fn      Fn
 	Running *atomic.Bool
 }
+
+type Fn func(ctx context.Context) error
+type HealthChecker func(ctx context.Context) <-chan error
 
 type Conf struct {
 	Logger          *log.Logger
 	DisableRecovery bool
 
-	// NewHealthChecker func will be called while waiting for Fn returning errors.
+	// HealthChecker func will be called while waiting for Fn returning errors.
 	// Once Fn returned anything, the context passed to NewHealthChecker will be canceled.
 	// If error chan return nil, wait time will be reset. Otherwise, the context passed
 	// to Fn and HealthChecker will be canceled.
-	NewHealthChecker func(ctx context.Context) <-chan error
+	HealthChecker HealthChecker
 
 	// InitialDuration means initial wait time, default 1 second
 	InitialDuration time.Duration
@@ -80,7 +83,7 @@ func (b Backoff) _CallHealthCheck(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	resetWait, cancelFn := CtxResetWait{}.Must(ctx), CtxCancelFn{}.Must(ctx)
 
-	healthCheckChan := b.Config.NewHealthChecker(ctx)
+	healthCheckChan := b.Config.HealthChecker(ctx)
 
 	go func() {
 		defer cancel()
@@ -135,7 +138,7 @@ func (b Backoff) _CallFn(ctx context.Context) <-chan error {
 		errChan <- b.Fn(ctx)
 	}()
 
-	if b.Config.NewHealthChecker != nil {
+	if b.Config.HealthChecker != nil {
 		b._CallHealthCheck(ctx)
 	}
 	return errChan
