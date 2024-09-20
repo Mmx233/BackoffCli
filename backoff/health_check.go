@@ -109,6 +109,7 @@ func NewHttpProbeHealthCheckFn(conf HttpProbeHealthCheckConfig) ProbeHealthCheck
 		if err != nil {
 			return err
 		}
+		req.WithContext(ctx)
 		req.Header = conf.Header
 		resp, err := client.Do(req)
 		if err != nil {
@@ -139,6 +140,31 @@ func NewHttpProbeHealthCheckFn(conf HttpProbeHealthCheckConfig) ProbeHealthCheck
 			}
 		}
 
+		return nil
+	}
+}
+
+type TcpProbeHealthCheckConfig struct {
+	Addr    string
+	Timeout time.Duration
+	Dialer  net.Dialer
+}
+
+func NewTcpProbeHealthCheckFn(conf TcpProbeHealthCheckConfig) ProbeHealthCheckFn {
+	return func(ctx context.Context) error {
+		if conf.Timeout != 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, conf.Timeout)
+			defer cancel()
+		}
+
+		conn, err := (&net.Dialer{
+			Timeout: conf.Timeout,
+		}).DialContext(ctx, "tcp", conf.Addr)
+		if err != nil {
+			return err
+		}
+		_ = conn.Close()
 		return nil
 	}
 }
