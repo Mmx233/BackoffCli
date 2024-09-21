@@ -24,38 +24,38 @@ func NewProbeHealthChecker(fn ProbeHealthCheckFn, conf ProbeHealthCheckerConfig)
 		errChan := make(chan error, 1)
 		var success, failure int
 		go func() {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(conf.CheckInterval):
+			if conf.InitialDelay != 0 {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(conf.InitialDelay):
+				}
 			}
 
-			time.Sleep(conf.InitialDelay)
-			ticker := time.NewTicker(conf.CheckInterval)
-			defer ticker.Stop()
-
 			for {
+				err := fn(ctx)
+				if err != nil {
+					failure++
+					if failure >= conf.FailureThreshold {
+						errChan <- err
+						return
+					}
+					success = 0
+				} else {
+					success++
+					if success >= conf.SuccessThreshold {
+						errChan <- nil
+						return
+					}
+					failure = 0
+				}
+
 				select {
 				case <-ctx.Done():
 					errChan <- ctx.Err()
 					return
-				case <-ticker.C:
-					err := fn(ctx)
-					if err != nil {
-						failure++
-						if failure >= conf.FailureThreshold {
-							errChan <- err
-							return
-						}
-						success = 0
-					} else {
-						success++
-						if success >= conf.SuccessThreshold {
-							errChan <- nil
-							return
-						}
-						failure = 0
-					}
+				case <-time.After(conf.CheckInterval):
+					// continue
 				}
 			}
 		}()
@@ -64,7 +64,7 @@ func NewProbeHealthChecker(fn ProbeHealthCheckFn, conf ProbeHealthCheckerConfig)
 }
 
 type HttpProbeHealthCheckConfig struct {
-	// If http.Client is not nil, Timeout will not take effect.
+	// If http.Client is not nil, some config will not take effect.
 	Client  *http.Client
 	Timeout time.Duration
 
@@ -105,6 +105,12 @@ func NewHttpProbeHealthCheckFn(conf HttpProbeHealthCheckConfig) ProbeHealthCheck
 	}
 
 	return func(ctx context.Context) error {
+		if conf.Timeout != 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, conf.Timeout)
+			defer cancel()
+		}
+
 		req, err := http.NewRequest(conf.Method, conf.URL, nil)
 		if err != nil {
 			return err
