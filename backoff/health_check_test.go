@@ -3,6 +3,7 @@ package backoff
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -153,5 +154,40 @@ func TestHttpProbeHealthCheckFn_Timeout(t *testing.T) {
 	err := fn(context.Background())
 	if err == nil {
 		t.Error("timeout not taking effect")
+	}
+}
+
+func TestTcpProbeHealthCheckFn_Success(t *testing.T) {
+	t.Parallel()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("create tcp listener failed: %v", err)
+	}
+	defer listener.Close()
+
+	errChan := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		errChan <- NewTcpProbeHealthCheckFn(TcpProbeHealthCheckConfig{
+			Addr:    listener.Addr().String(),
+			Timeout: time.Millisecond * 5,
+		})(ctx)
+	}()
+
+	conn, err := listener.Accept()
+	if err != nil {
+		t.Fatalf("accept conntection failed: %v", err)
+	}
+	_ = conn.Close()
+
+	select {
+	case err := <-errChan:
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+	case <-time.After(time.Millisecond * 10):
+		t.Fatal("timeout")
 	}
 }
