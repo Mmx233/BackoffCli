@@ -143,7 +143,10 @@ func TestHttpProbeHealthCheckFn_Timeout(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		time.Sleep(time.Second)
+		select {
+		case <-req.Context().Done():
+		case <-time.After(time.Second):
+		}
 	}))
 	defer server.Close()
 
