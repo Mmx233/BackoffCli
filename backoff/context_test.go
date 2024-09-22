@@ -2,6 +2,8 @@ package backoff
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -14,16 +16,10 @@ func TestCtxStructKey(t *testing.T) {
 	type Key2 struct {
 		CtxStructKey[Key2, int]
 	}
+	ctx := context.WithValue(context.Background(), Key1{}, value)
 
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, Key1{}, value)
-
-	if ctx.Value(Key1{}) != value {
-		t.Errorf("can't read same value again")
-	}
-	if ctx.Value(Key2{}) != nil {
-		t.Errorf("getting same value for different struct")
-	}
+	require.Equal(t, value, ctx.Value(Key1{}), "can't read same value again")
+	require.Equal(t, nil, ctx.Value(Key2{}), "getting odd value for not exist key")
 }
 
 func TestCtxStructKey_Read(t *testing.T) {
@@ -31,12 +27,16 @@ func TestCtxStructKey_Read(t *testing.T) {
 		CtxStructKey[Key, string]
 	}
 	ctx := context.WithValue(context.Background(), Key{}, value)
-	if v, ok := (Key{}).Get(ctx); !ok || v != value {
-		t.Fatalf("Get not work properly, got ok: '%v', value: '%v', expected: '%s'", ok, v, value)
-	}
-	if v := (Key{}).Must(ctx); v != value {
-		t.Errorf("Must not work properly, expected '%s' got '%v'", value, v)
-	}
+
+	require.Condition(t, func() (success bool) {
+		v, ok := (Key{}).Get(ctx)
+		return ok && v == value
+	}, "CtxStructKey.Get not work properly")
+
+	require.Equal(t, value, (Key{}).Must(ctx), "CtxStructKey.Must not work properly")
+	assert.Panics(t, func() {
+		(Key{}).Must(context.Background())
+	}, "should panic when key is not exist")
 }
 
 func TestCtxStructKey_Write(t *testing.T) {
@@ -44,7 +44,6 @@ func TestCtxStructKey_Write(t *testing.T) {
 		CtxStructKey[Key, string]
 	}
 	ctx := Key{}.Set(context.Background(), value)
-	if ctx.Value(Key{}) != value {
-		t.Errorf("Set not work properly")
-	}
+
+	assert.Equal(t, value, (Key{}).Must(ctx), "CtxStructKey.Set not work properly")
 }

@@ -2,7 +2,7 @@ package backoff
 
 import (
 	"context"
-	"errors"
+	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 )
@@ -19,14 +19,8 @@ func TestBackoff_Start(t *testing.T) {
 		}
 		return nil
 	}, Conf{})
-	err := instance.Start(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = instance.Start(ctx)
-	if !errors.Is(err, &ErrorAlreadyRunning{}) {
-		t.Fatal("expected ErrorAlreadyRunning, got:", err)
-	}
+	require.Nil(t, instance.Start(ctx), "start instance failed")
+	require.ErrorIs(t, instance.Start(ctx), &ErrorAlreadyRunning{})
 
 	cancel()
 
@@ -36,7 +30,7 @@ func TestBackoff_Start(t *testing.T) {
 	for {
 		select {
 		case <-ctx.Done():
-			t.Fatal("instance should not be running")
+			t.Fatal("instance should not still running")
 		case <-time.After(time.Millisecond):
 			if instance.Running.Load() {
 				continue

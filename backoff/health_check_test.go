@@ -2,7 +2,8 @@ package backoff
 
 import (
 	"context"
-	"errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -24,22 +25,14 @@ func TestProbeHealthChecker_Success(t *testing.T) {
 		SuccessThreshold: 5,
 	})(context.Background())
 
-	if count.Load() != 0 {
-		t.Fatal("initial delay not work")
-	}
+	assert.Equal(t, uint32(0), count.Load(), "initial delay not work")
 	time.Sleep(time.Millisecond * 2)
-	if count.Load() != 1 {
-		t.Fatal("first fn call not work")
-	}
+	require.Equal(t, uint32(1), count.Load(), "first fn call not work")
 
 	select {
 	case err := <-errChan:
-		if err != nil {
-			t.Fatalf("expected nil error, got %v", err)
-		}
-		if count.Load() != 5 {
-			t.Fatalf("success threshold not work properly, expected 5, got %d", count.Load())
-		}
+		assert.Nil(t, err, "probe health check fail")
+		assert.Equal(t, uint32(5), count.Load(), "success threshold not work properly")
 	case <-time.After(time.Millisecond * 15):
 		t.Fatal("timeout")
 	}
@@ -49,10 +42,9 @@ func TestProbeHealthChecker_Failure(t *testing.T) {
 	t.Parallel()
 
 	var count atomic.Uint32
-	expectedErr := errors.New("test error")
 	errChan := NewProbeHealthChecker(func(ctx context.Context) error {
 		count.Add(1)
-		return expectedErr
+		return assert.AnError
 	}, ProbeHealthCheckerConfig{
 		CheckInterval:    time.Millisecond,
 		FailureThreshold: 5,
@@ -60,12 +52,8 @@ func TestProbeHealthChecker_Failure(t *testing.T) {
 
 	select {
 	case err := <-errChan:
-		if !errors.Is(err, expectedErr) {
-			t.Fatalf("expected error: '%v', got: '%v'", expectedErr, err)
-		}
-		if count.Load() != 5 {
-			t.Fatalf("failure threshold not work properly, expected 5, got %d", count.Load())
-		}
+		require.ErrorIs(t, err, assert.AnError)
+		assert.Equal(t, uint32(5), count.Load(), "failure threshold not work properly")
 	case <-time.After(time.Millisecond * 10):
 		t.Fatal("timeout")
 	}
@@ -83,11 +71,9 @@ func TestHttpProbeHealthCheckFn_Request(t *testing.T) {
 
 	url := server.URL + "/health"
 
-	if err := NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
+	assert.Nil(t, NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
 		URL: url,
-	})(context.Background()); err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
+	})(context.Background()), "request failed")
 }
 
 func TestHttpProbeHealthCheckFn_Response_Check(t *testing.T) {
@@ -103,40 +89,26 @@ func TestHttpProbeHealthCheckFn_Response_Check(t *testing.T) {
 	url := server.URL + "/health"
 
 	// keyword
-	if err := NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
+	require.Nil(t, NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
 		URL:     url,
 		Keyword: "ok",
-	})(context.Background()); err != nil {
-		t.Fatalf("expected keyword '%s', got error: %v", "ok", err)
-	}
-	if err := NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
+	})(context.Background()), "expected keyword 'ok'")
+	var errorKeywordNotFound *ErrorKeywordNotFound
+	assert.ErrorAs(t, NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
 		URL:     url,
 		Keyword: "not_ok",
-	})(context.Background()); true {
-		var errorKeywordNotFound *ErrorKeywordNotFound
-		ok := errors.As(err, &errorKeywordNotFound)
-		if !ok {
-			t.Errorf("expected keyword not found, got error: %v", err)
-		}
-	}
+	})(context.Background()), &errorKeywordNotFound, "expected keyword not matched")
 
 	// response code
-	if err := NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
+	require.Nil(t, NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
 		URL:            url,
 		HttpStatusCode: 200,
-	})(context.Background()); err != nil {
-		t.Fatalf("expected http code 200, got error: %v", err)
-	}
-	if err := NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
+	})(context.Background()), "expected http code 200")
+	var errorUnexpectedHttpStatus *ErrorUnexpectedHttpStatus
+	assert.ErrorAs(t, NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
 		URL:            url,
 		HttpStatusCode: 201,
-	})(context.Background()); true {
-		var errorKeywordNotFound *ErrorUnexpectedHttpStatus
-		ok := errors.As(err, &errorKeywordNotFound)
-		if !ok {
-			t.Fatalf("expected http code not match, got error: %v", err)
-		}
-	}
+	})(context.Background()), &errorUnexpectedHttpStatus, "expected http code not match")
 }
 
 func TestHttpProbeHealthCheckFn_Timeout(t *testing.T) {
@@ -150,23 +122,17 @@ func TestHttpProbeHealthCheckFn_Timeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	fn := NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
+	assert.NotNil(t, NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
 		URL:     server.URL,
 		Timeout: time.Millisecond,
-	})
-	err := fn(context.Background())
-	if err == nil {
-		t.Error("timeout not taking effect")
-	}
+	})(context.Background()), "timeout not taking effect")
 }
 
 func TestTcpProbeHealthCheckFn_Success(t *testing.T) {
 	t.Parallel()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("create tcp listener failed: %v", err)
-	}
+	require.NoError(t, err, "create tcp listener failed")
 	defer listener.Close()
 
 	errChan := make(chan error, 1)
@@ -180,16 +146,12 @@ func TestTcpProbeHealthCheckFn_Success(t *testing.T) {
 	}()
 
 	conn, err := listener.Accept()
-	if err != nil {
-		t.Fatalf("accept conntection failed: %v", err)
-	}
+	require.NoError(t, err, "accept conntection failed")
 	_ = conn.Close()
 
 	select {
 	case err := <-errChan:
-		if err != nil {
-			t.Fatalf("expected nil error, got %v", err)
-		}
+		require.Nil(t, err)
 	case <-time.After(time.Millisecond * 10):
 		t.Fatal("timeout")
 	}
