@@ -76,6 +76,27 @@ func TestHttpProbeHealthCheckFn_Request(t *testing.T) {
 	})(context.Background()), "request failed")
 }
 
+func TestHttpProbeHealthCheckFn_NoRedirect(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/health" {
+			http.Redirect(rw, req, "/", http.StatusMovedPermanently)
+			return
+		}
+		rw.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	url := server.URL + "/health"
+
+	var errorUnexpectedHttpStatus *ErrorUnexpectedHttpStatus
+	assert.ErrorAs(t, NewHttpProbeHealthCheckFn(HttpProbeHealthCheckConfig{
+		URL:            url,
+		FollowRedirect: false,
+	})(context.Background()), &errorUnexpectedHttpStatus, "no redirect setting not taking effect")
+}
+
 func TestHttpProbeHealthCheckFn_Response_Check(t *testing.T) {
 	t.Parallel()
 
