@@ -57,6 +57,9 @@ func New(fn func(ctx context.Context) error, c Conf) Backoff {
 	return NewInstance(fn, c)
 }
 
+// NewInstance creates instance without default configs.
+// Running with all zero values will lead to unexpected behavior.
+// Consider to use New or set values by hand.
 func NewInstance(fn func(ctx context.Context) error, conf Conf) Backoff {
 	if conf.Logger == nil {
 		conf.Logger = log.New()
