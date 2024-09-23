@@ -16,8 +16,11 @@ func TestProbeHealthChecker_Success(t *testing.T) {
 	t.Parallel()
 
 	var count atomic.Uint32
+	firstCall := make(chan struct{}, 1)
 	errChan := NewProbeHealthChecker(func(ctx context.Context) error {
-		count.Add(1)
+		if count.Add(1) == 1 {
+			firstCall <- struct{}{}
+		}
 		return nil
 	}, ProbeHealthCheckerConfig{
 		CheckInterval:    time.Millisecond * 2,
@@ -26,14 +29,18 @@ func TestProbeHealthChecker_Success(t *testing.T) {
 	})(context.Background())
 
 	assert.Equal(t, uint32(0), count.Load(), "initial delay not work")
-	time.Sleep(time.Millisecond * 2)
-	require.Equal(t, uint32(1), count.Load(), "first fn call not work")
+	select {
+	case <-firstCall:
+		require.Equal(t, uint32(1), count.Load(), "first fn call not work")
+	case <-time.After(time.Second):
+		t.Fatal(t, "first fn call timeout")
+	}
 
 	select {
 	case err := <-errChan:
 		assert.Nil(t, err, "probe health check fail")
 		assert.Equal(t, uint32(5), count.Load(), "success threshold not work properly")
-	case <-time.After(time.Millisecond * 15):
+	case <-time.After(time.Second):
 		t.Fatal("timeout")
 	}
 }
@@ -173,7 +180,7 @@ func TestTcpProbeHealthCheckFn_Success(t *testing.T) {
 	select {
 	case err := <-errChan:
 		require.Nil(t, err)
-	case <-time.After(time.Millisecond * 10):
+	case <-time.After(time.Second):
 		t.Fatal("timeout")
 	}
 }

@@ -147,6 +147,17 @@ func (b Backoff) _CallFn(ctx context.Context) <-chan error {
 	return errChan
 }
 
+func (b Backoff) NextWait(wait time.Duration) time.Duration {
+	if wait < b.Config.MaxDuration {
+		wait = (wait+b.Config.InterConstFactor)<<b.Config.ExponentFactor + b.Config.OuterConstFactor
+		if wait > b.Config.MaxDuration {
+			return b.Config.MaxDuration
+		}
+		return wait
+	}
+	return b.Config.MaxDuration
+}
+
 func (b Backoff) Run(ctx context.Context) error {
 	logger := b.Config.Logger.WithContext(ctx)
 
@@ -208,11 +219,6 @@ func (b Backoff) Run(ctx context.Context) error {
 			// continue retry
 		}
 
-		if wait < b.Config.MaxDuration {
-			wait = (wait+b.Config.InterConstFactor)<<b.Config.ExponentFactor + b.Config.OuterConstFactor
-			if wait > b.Config.MaxDuration {
-				wait = b.Config.MaxDuration
-			}
-		}
+		wait = b.NextWait(wait)
 	}
 }

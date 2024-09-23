@@ -76,7 +76,7 @@ func TestBackoff_HealthCheck(t *testing.T) {
 		case <-ctx.Done():
 			cancel()
 		case <-time.After(time.Second):
-			require.FailNow(t, "health check failure not causing context canceled")
+			t.Error("health check failure not causing context canceled")
 			cancel()
 		}
 		return nil
@@ -100,4 +100,21 @@ func TestBackoff_HealthCheck(t *testing.T) {
 	instance.Config.Logger.SetOutput(io.Discard)
 
 	_ = instance.Run(ctx)
+}
+
+func TestBackoff_NextWait(t *testing.T) {
+	instance := NewInstance(func(ctx context.Context) error {
+		return nil
+	}, Conf{
+		InitialDuration:  time.Second,
+		MaxDuration:      time.Minute * 5,
+		ExponentFactor:   2,
+		InterConstFactor: time.Second,
+		OuterConstFactor: time.Second,
+	})
+
+	assert.Equal(t, time.Second*9, instance.NextWait(instance.Config.InitialDuration))
+	assert.Equal(t, time.Second*5, instance.NextWait(0))
+
+	assert.Equal(t, instance.Config.MaxDuration, instance.NextWait(time.Minute*2))
 }
