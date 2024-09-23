@@ -3,6 +3,7 @@
 package pipe
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -10,10 +11,14 @@ import (
 )
 
 func New() Pipe {
-	return _Pipe{}
+	return _Pipe{
+		Dialer: &net.Dialer{},
+	}
 }
 
-type _Pipe struct{}
+type _Pipe struct {
+	Dialer *net.Dialer
+}
 
 func (_Pipe) Addr(name string) string {
 	return fmt.Sprintf(`/tmp/%s`, name)
@@ -29,6 +34,6 @@ func (_Pipe) Listen(addr string) (net.Listener, error) {
 	return net.Listen("unix", addr)
 }
 
-func (_Pipe) Dial(addr string) (net.Conn, error) {
-	return net.Dial("unix", addr)
+func (p _Pipe) Dial(ctx context.Context, addr string) (net.Conn, error) {
+	return p.Dialer.DialContext(ctx, "unix", addr)
 }
