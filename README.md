@@ -1,8 +1,8 @@
 # Backoff CLI
 
-[![Lisense](https://img.shields.io/github/license/Mmx233/BackoffCli)](https://github.com/Mmx233/GoReleaseCli/blob/main/LICENSE)
-[![Release](https://img.shields.io/github/v/release/Mmx233/BackoffCli?color=blueviolet&include_prereleases)](https://github.com/Mmx233/GoReleaseCli/releases)
-[![GoReport](https://goreportcard.com/badge/github.com/Mmx233/BackoffCli)](https://goreportcard.com/report/github.com/Mmx233/GoReleaseCli)
+[![Lisense](https://img.shields.io/github/license/Mmx233/BackoffCli)](https://github.com/Mmx233/BackoffCli/blob/main/LICENSE)
+[![Release](https://img.shields.io/github/v/release/Mmx233/BackoffCli?color=blueviolet&include_prereleases)](https://github.com/Mmx233/BackoffCli/releases)
+[![GoReport](https://goreportcard.com/badge/github.com/Mmx233/BackoffCli)](https://goreportcard.com/report/github.com/Mmx233/BackoffCli)
 
 ```shell
 ~# go run .\cmd\backoff\ -h                      
