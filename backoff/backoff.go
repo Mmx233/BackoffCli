@@ -49,7 +49,7 @@ func New(fn func(ctx context.Context) error, c Conf) Backoff {
 		c.InitialDuration = time.Second
 	}
 	if c.MaxDuration == 0 {
-		c.MaxDuration = time.Minute * 20
+		c.MaxDuration = time.Minute * 10
 	}
 	if c.ExponentFactor <= 0 {
 		c.ExponentFactor = 1
