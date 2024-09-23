@@ -16,7 +16,7 @@ import (
 func main() {
 	kingpin.MustParse(config.NewCommands().Parse(os.Args[1:]))
 	if config.Config.Name == "" {
-		config.Config.Name = strings.Split(path.Base(os.Args[0]), ".")[0]
+		config.Config.Name = "backoff-" + strings.Split(path.Base(strings.ReplaceAll(config.Config.Path, "\\", "/")), ".")[0]
 	}
 
 	single := singleton.New(config.Config.Name)
@@ -34,7 +34,9 @@ func main() {
 		cmd.Stderr = os.Stderr
 		return cmd.Run()
 	}, backoffConf)
-	if err := backoffInstance.Run(context.Background()); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := backoffInstance.Run(ctx); err != nil {
 		log.Fatalln(err)
 	}
 }

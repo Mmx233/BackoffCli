@@ -22,8 +22,8 @@ func New(name string) *Singleton {
 		Pipe: _pipe,
 		HttpClient: &http.Client{
 			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
-					return _pipe.Dial(addr)
+				DialContext: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
+					return _pipe.Dial(ctx, addr)
 				},
 			},
 		},
@@ -40,7 +40,13 @@ type Singleton struct {
 }
 
 func (s *Singleton) RequestExit(ctx context.Context) error {
-	req, err := http.NewRequest("GET", "unix://backoff/exit", nil)
+	if s.cancel != nil {
+		s.cancel()
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	s.cancel = cancel
+
+	req, err := http.NewRequest("GET", "http://backoff/exit", nil)
 	if err != nil {
 		return err
 	}
@@ -51,13 +57,13 @@ func (s *Singleton) RequestExit(ctx context.Context) error {
 		return err
 	}
 	defer resp.Body.Close()
+
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-
 	if string(data) != "ok" {
-		return errors.New("response not ok")
+		return errors.New("http server response not correct")
 	}
 	return nil
 }
@@ -82,6 +88,7 @@ func (s *Singleton) Run() error {
 	}
 
 	go func() {
+		log.Debugf("listening %s", s.Addr)
 		if err := pipe.HttpListen(listener, &http.Server{
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
