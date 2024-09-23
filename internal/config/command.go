@@ -18,6 +18,7 @@ func NewCommands() *kingpin.Application {
 	app.Flag("factor.const.outer", "outer const factor").Default("0s").DurationVar(&Config.FactorConstInter)
 
 	app.Flag("name", "pipe name for singleton, default generate by path").StringVar(&Config.Name)
+	app.Flag("singleton", "run with singleton parton with unique name").BoolVar(&Config.Singleton)
 	app.Arg("path", "program to run").Required().StringVar(&Config.Path)
 
 	return app

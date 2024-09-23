@@ -8,8 +8,9 @@ import (
 var Config _Config
 
 type _Config struct {
-	Name string
-	Path string
+	Name      string
+	Path      string
+	Singleton bool
 
 	DurationInitial time.Duration
 	DurationMax     time.Duration

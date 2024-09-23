@@ -15,14 +15,16 @@ import (
 
 func main() {
 	kingpin.MustParse(config.NewCommands().Parse(os.Args[1:]))
-	if config.Config.Name == "" {
-		config.Config.Name = "backoff-" + strings.Split(path.Base(strings.ReplaceAll(config.Config.Path, "\\", "/")), ".")[0]
-	}
 
-	single := singleton.New(config.Config.Name)
-	defer single.Close()
-	if err := single.Run(); err != nil {
-		log.Fatalln(err)
+	if config.Config.Singleton {
+		if config.Config.Name == "" {
+			config.Config.Name = "backoff-" + strings.Split(path.Base(strings.ReplaceAll(config.Config.Path, "\\", "/")), ".")[0]
+		}
+		single := singleton.New(config.Config.Name)
+		defer single.Close()
+		if err := single.Run(); err != nil {
+			log.Fatalln(err)
+		}
 	}
 
 	backoffConf := config.Config.NewBackoffConf()
