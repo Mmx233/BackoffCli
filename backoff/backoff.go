@@ -5,14 +5,12 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"runtime"
-	"sync/atomic"
 	"time"
 )
 
 type Backoff struct {
-	Config  Conf
-	Fn      Fn
-	Running *atomic.Bool
+	Config Conf
+	Fn     Fn
 }
 
 type Fn func(ctx context.Context) error
@@ -65,21 +63,9 @@ func NewInstance(fn func(ctx context.Context) error, conf Conf) Backoff {
 		conf.Logger = log.New()
 	}
 	return Backoff{
-		Config:  conf,
-		Fn:      fn,
-		Running: &atomic.Bool{},
+		Config: conf,
+		Fn:     fn,
 	}
-}
-
-func (b Backoff) Start(ctx context.Context) error {
-	if b.Running.CompareAndSwap(false, true) {
-		go func() {
-			defer b.Running.Store(false)
-			_ = b.Run(ctx)
-		}()
-		return nil
-	}
-	return &ErrorAlreadyRunning{}
 }
 
 func (b Backoff) _CallHealthCheck(ctx context.Context) {
