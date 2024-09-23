@@ -17,7 +17,8 @@ func NewCommands() *kingpin.Application {
 	app.Flag("factor.const.inter", "inter const factor").Default("0s").DurationVar(&Config.FactorConstInter)
 	app.Flag("factor.const.outer", "outer const factor").Default("0s").DurationVar(&Config.FactorConstInter)
 
-	app.Arg("path", "program to run").Required()
+	app.Flag("name", "pipe name for singleton, default generate by path").StringVar(&Config.Name)
+	app.Arg("path", "program to run").Required().StringVar(&Config.Path)
 
 	return app
 }
