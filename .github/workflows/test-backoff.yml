@@ -5,6 +5,12 @@ name: Test Backoff
 
 on:
   push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/test-backoff.yml
+      - backoff/*
+  pull_request:
     paths:
       - .github/workflows/test-backoff.yml
       - backoff/*
