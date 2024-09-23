@@ -62,3 +62,42 @@ func TestBackoff_Recovery(t *testing.T) {
 	var errorPanic *ErrorPanic
 	assert.ErrorAs(t, errorMaxRetry.LastError, &errorPanic)
 }
+
+func TestBackoff_HealthCheck(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ping := make(chan struct{})
+	instance := NewInstance(func(ctx context.Context) error {
+		ping <- struct{}{}
+		select {
+		case <-ctx.Done():
+			cancel()
+		case <-time.After(time.Second):
+			require.FailNow(t, "health check failure not causing context canceled")
+			cancel()
+		}
+		return nil
+	}, Conf{
+		HealthChecker: func(ctx context.Context) <-chan error {
+			errChan := make(chan error, 1)
+			go func() {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Second):
+					require.Equal(t, 1, len(ping), "instance fn not ran before healthcheck")
+					return
+				case <-ping:
+				}
+				errChan <- assert.AnError
+			}()
+			return errChan
+		},
+	})
+	instance.Config.Logger.SetOutput(io.Discard)
+
+	_ = instance.Run(ctx)
+}
