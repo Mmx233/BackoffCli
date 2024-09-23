@@ -1,14 +1,12 @@
 package main
 
 import (
-	"context"
-	"github.com/Mmx233/BackoffCli/backoff"
-	"github.com/Mmx233/BackoffCli/pipe"
+	"github.com/Mmx233/BackoffCli/internal/config"
+	_ "github.com/Mmx233/BackoffCli/pipe"
+	"github.com/alecthomas/kingpin/v2"
+	"os"
 )
 
 func main() {
-	backoff.New(func(ctx context.Context) error {
-		return nil
-	}, backoff.Conf{})
-	pipe.New()
+	kingpin.MustParse(config.NewCommands().Parse(os.Args[1:]))
 }
