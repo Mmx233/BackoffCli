@@ -5,9 +5,8 @@ name: Test Backoff
 
 on:
   push:
-    branches:
-      - main
     paths:
+      - .github/workflows/test-backoff.yml
       - backoff/*
 
 jobs:
