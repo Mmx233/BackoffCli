@@ -28,10 +28,30 @@ Args:
   <path>  program to run
 ```
 
+### Backoff Wait Time Calculating Logic
+
+```
+$Wait = duration.initial
+
+for {
+    if Fn_Succuess {
+        quit
+    }
+    if HealthCheckExist && HealthCheckSuccess {
+        $Wait = duration.initial
+    } else {
+        $Wait = ($Wait + factor.const.inter) * (2 ^ factor.exponent) + factor.const.outer
+        $Wait = min($Wait, duration.max)
+    }
+    
+    sleep($Wait)
+}
+```
+
 ### Use as go library
 
 ```shell
-~# go get github.com/Mmx233/BackoffCli/backoff
+go get github.com/Mmx233/BackoffCli/backoff
 ```
 
 ```go
