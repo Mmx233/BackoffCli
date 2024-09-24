@@ -28,25 +28,20 @@ func New(name string) *Singleton {
 				},
 			},
 		},
+		Shutdown: func() {},
 	}
 }
 
 type Singleton struct {
-	Name       string
-	Addr       string
+	Name string
+	Addr string
+
 	Pipe       pipe.Pipe
 	HttpClient *http.Client
-
-	cancel context.CancelFunc
+	Shutdown   func()
 }
 
 func (s *Singleton) RequestExit(ctx context.Context) error {
-	if s.cancel != nil {
-		s.cancel()
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	s.cancel = cancel
-
 	req, err := http.NewRequest("GET", "http://backoff/exit", nil)
 	if err != nil {
 		return err
@@ -70,12 +65,8 @@ func (s *Singleton) RequestExit(ctx context.Context) error {
 }
 
 func (s *Singleton) Run() error {
-	if s.cancel != nil {
-		s.cancel()
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	s.cancel = cancel
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 
 	if err := s.RequestExit(ctx); err != nil {
 		log.Debugln("exit other instance failed:", err)
@@ -91,7 +82,8 @@ func (s *Singleton) Run() error {
 	go func() {
 		log.Debugf("listening %s", s.Addr)
 		server := &http.Server{}
-		shutdown := sync.OnceFunc(func() {
+		s.Shutdown()
+		s.Shutdown = sync.OnceFunc(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := server.Shutdown(ctx); err != nil {
@@ -103,7 +95,7 @@ func (s *Singleton) Run() error {
 			switch r.URL.Path {
 			case "/exit":
 				_, _ = w.Write([]byte("ok"))
-				go shutdown()
+				go s.Shutdown()
 			default:
 				w.WriteHeader(http.StatusNotFound)
 			}
@@ -117,6 +109,6 @@ func (s *Singleton) Run() error {
 
 func (s *Singleton) Close() error {
 	s.HttpClient.CloseIdleConnections()
-	s.cancel()
+	s.Shutdown()
 	return nil
 }
