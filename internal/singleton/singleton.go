@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -89,20 +90,25 @@ func (s *Singleton) Run() error {
 
 	go func() {
 		log.Debugf("listening %s", s.Addr)
-		if err := pipe.HttpListen(listener, &http.Server{
-			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				switch r.URL.Path {
-				case "/exit":
-					_, _ = w.Write([]byte("ok"))
-					go func() {
-						time.Sleep(time.Millisecond * 50)
-						os.Exit(0)
-					}()
-				default:
-					w.WriteHeader(http.StatusNotFound)
-				}
-			}),
-		}); err != nil {
+		server := &http.Server{}
+		shutdown := sync.OnceFunc(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := server.Shutdown(ctx); err != nil {
+				log.Warnln("http server shutdown failed:", err)
+			}
+			os.Exit(0)
+		})
+		server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/exit":
+				_, _ = w.Write([]byte("ok"))
+				go shutdown()
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+		if err := pipe.HttpListen(listener, server); err != nil {
 			log.Fatalln("listen on pipe failed:", err)
 		}
 	}()
