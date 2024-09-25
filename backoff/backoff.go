@@ -17,7 +17,7 @@ type Fn func(ctx context.Context) error
 type HealthChecker func(ctx context.Context) <-chan error
 
 type Conf struct {
-	Logger          *log.Logger
+	Logger          Logger
 	DisableRecovery bool
 
 	// HealthChecker func will be called while waiting for Fn returning errors.
