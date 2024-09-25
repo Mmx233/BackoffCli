@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 )
@@ -64,8 +63,8 @@ func (s *Singleton) RequestExit(ctx context.Context) error {
 	return nil
 }
 
-func (s *Singleton) Run() error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+func (s *Singleton) Run(ctx context.Context, exit func()) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	if err := s.RequestExit(ctx); err != nil {
@@ -89,7 +88,7 @@ func (s *Singleton) Run() error {
 			if err := server.Shutdown(ctx); err != nil {
 				log.Warnln("http server shutdown failed:", err)
 			}
-			os.Exit(0)
+			exit()
 		})
 		server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
