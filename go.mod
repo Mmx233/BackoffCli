@@ -6,7 +6,7 @@ replace github.com/Mmx233/BackoffCli/backoff => ./backoff
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
-	github.com/Mmx233/BackoffCli/backoff v0.0.0-20240924144324-7b288b13d4c6
+	github.com/Mmx233/BackoffCli/backoff v0.0.0-20240925131851-fca176afd6a4
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/sirupsen/logrus v1.9.3
 )
