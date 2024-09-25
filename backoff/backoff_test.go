@@ -2,6 +2,7 @@ package backoff
 
 import (
 	"context"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -12,15 +13,18 @@ import (
 func TestBackoff_Recovery(t *testing.T) {
 	t.Parallel()
 
+	logger := log.New()
+	logger.SetOutput(io.Discard)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	instance := NewInstance(func(ctx context.Context) error {
 		panic("fn panic")
 		return nil
 	}, Conf{
+		Logger:   logger,
 		MaxRetry: 1,
 	})
-	instance.Config.Logger.SetOutput(io.Discard)
 
 	var errorMaxRetry *ErrorMaxRetryExceeded
 	require.ErrorAs(t, instance.Run(ctx), &errorMaxRetry)
@@ -34,6 +38,9 @@ func TestBackoff_HealthCheck(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	logger := log.New()
+	logger.SetOutput(io.Discard)
+
 	ping := make(chan struct{})
 	instance := NewInstance(func(ctx context.Context) error {
 		ping <- struct{}{}
@@ -46,6 +53,7 @@ func TestBackoff_HealthCheck(t *testing.T) {
 		}
 		return nil
 	}, Conf{
+		Logger: logger,
 		HealthChecker: func(ctx context.Context) <-chan error {
 			errChan := make(chan error, 1)
 			go func() {
@@ -62,7 +70,6 @@ func TestBackoff_HealthCheck(t *testing.T) {
 			return errChan
 		},
 	})
-	instance.Config.Logger.SetOutput(io.Discard)
 
 	_ = instance.Run(ctx)
 }
