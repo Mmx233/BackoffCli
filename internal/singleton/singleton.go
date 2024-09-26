@@ -99,7 +99,7 @@ func (s *Singleton) Run(ctx context.Context, exit func()) error {
 				w.WriteHeader(http.StatusNotFound)
 			}
 		})
-		if err := pipe.HttpListen(listener, server); err != nil {
+		if err := pipe.HttpListen(listener, server); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalln("listen on pipe failed:", err)
 		}
 	}()

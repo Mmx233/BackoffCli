@@ -12,11 +12,9 @@ import (
 	"os/exec"
 	"os/signal"
 	"path"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"syscall"
-	"time"
 )
 
 func main() {
@@ -32,6 +30,8 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	var lastCmd = make(chan *exec.Cmd, 1)
 
 	backoffConf := config.Config.NewBackoffConf()
 	backoffInstance := backoff.NewInstance(func(ctx context.Context) error {
@@ -50,11 +50,22 @@ func main() {
 			needSingleton.Store(false)
 		}
 
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-lastCmd:
+		default:
+		}
+
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
 		parts := strings.Fields(config.Config.Path)
 		cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+		lastCmd <- cmd
 		return cmd.Run()
 	}, backoffConf)
 
@@ -71,18 +82,10 @@ func main() {
 	if single != nil {
 		single.Shutdown()
 	}
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	for {
-		select {
-		case <-ctx.Done():
-			log.Warnln("wait goroutine quit timeout")
-			return
-		case <-time.After(time.Millisecond * 10):
-			if runtime.NumGoroutine() <= 2 {
-				return
-			}
-		}
+	select {
+	case cmd := <-lastCmd:
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+	default:
 	}
 }
