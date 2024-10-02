@@ -31,6 +31,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	quitProcess := func() {
+		select {
+		case <-ctx.Done():
+		case quit <- syscall.SIGTERM:
+		}
+	}
+
 	var lastCmd = make(chan *exec.Cmd, 1)
 
 	backoffConf := config.Config.NewBackoffConf()
@@ -39,12 +46,7 @@ func main() {
 			if config.Config.Name == "" {
 				config.Config.Name = "backoff-" + strings.Split(path.Base(strings.ReplaceAll(config.Config.Path, "\\", "/")), ".")[0]
 			}
-			if err := single.Run(ctx, func() {
-				select {
-				case <-ctx.Done():
-				case quit <- syscall.SIGTERM:
-				}
-			}); err != nil {
+			if err := single.Run(ctx, quitProcess); err != nil {
 				return err
 			}
 			needSingleton.Store(false)
@@ -71,7 +73,8 @@ func main() {
 
 	go func() {
 		if err := backoffInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			log.Fatalln("backoff run failed:", err)
+			log.Errorln("backoff run failed:", err)
+			quitProcess()
 		}
 	}()
 
