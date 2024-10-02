@@ -13,48 +13,23 @@ import (
 	"os/signal"
 	"path"
 	"strings"
-	"sync/atomic"
 	"syscall"
 )
 
-func main() {
+func init() {
 	kingpin.MustParse(config.NewCommands().Parse(os.Args[1:]))
-	quit := make(chan os.Signal)
-
-	var needSingleton atomic.Bool
-	var single *singleton.Singleton
-	if config.Config.Singleton {
-		needSingleton.Store(true)
-		single = singleton.New(config.Config.Name)
+	if config.Config.Name == "" {
+		config.Config.Name = "backoff-" + strings.Split(path.Base(strings.ReplaceAll(config.Config.Path, "\\", "/")), ".")[0]
 	}
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	quitProcess := func() {
-		select {
-		case <-ctx.Done():
-		case quit <- syscall.SIGTERM:
-		}
-	}
-
-	var lastCmd = make(chan *exec.Cmd, 1)
-
-	backoffConf := config.Config.NewBackoffConf()
-	backoffInstance := backoff.NewInstance(func(ctx context.Context) error {
-		if needSingleton.Load() {
-			if config.Config.Name == "" {
-				config.Config.Name = "backoff-" + strings.Split(path.Base(strings.ReplaceAll(config.Config.Path, "\\", "/")), ".")[0]
-			}
-			if err := single.Run(ctx, quitProcess); err != nil {
-				return err
-			}
-			needSingleton.Store(false)
+func NewBackoffFn(lastCmd chan *exec.Cmd, _singleton singleton.DoSingleton) backoff.Fn {
+	return func(ctx context.Context) error {
+		if err := _singleton(); err != nil {
+			return err
 		}
 
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
 		case <-lastCmd:
 		default:
 		}
@@ -69,8 +44,24 @@ func main() {
 		cmd.Stderr = os.Stderr
 		lastCmd <- cmd
 		return cmd.Run()
-	}, backoffConf)
+	}
+}
 
+func main() {
+	quit := make(chan os.Signal)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	quitProcess := func() {
+		select {
+		case <-ctx.Done():
+		case quit <- syscall.SIGTERM:
+		}
+	}
+
+	_singleton, single := singleton.New(ctx, quitProcess)
+	defer single.Shutdown()
+	lastCmd := make(chan *exec.Cmd, 1)
+	backoffInstance := backoff.NewInstance(NewBackoffFn(lastCmd, _singleton), config.Config.NewBackoffConf())
 	go func() {
 		if err := backoffInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Errorln("backoff run failed:", err)
@@ -82,13 +73,13 @@ func main() {
 	<-quit
 	log.Infoln("Shutdown...")
 	cancel()
-	if single != nil {
-		single.Shutdown()
-	}
+
 	select {
 	case cmd := <-lastCmd:
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+			_, _ = cmd.Process.Wait()
+		}
 	default:
 	}
 }

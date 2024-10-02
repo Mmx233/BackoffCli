@@ -3,6 +3,7 @@ package singleton
 import (
 	"context"
 	"errors"
+	"github.com/Mmx233/BackoffCli/internal/config"
 	"github.com/Mmx233/BackoffCli/pipe"
 	log "github.com/sirupsen/logrus"
 	"io"
@@ -12,7 +13,23 @@ import (
 	"time"
 )
 
-func New(name string) *Singleton {
+type DoSingleton func() error
+
+func New(ctx context.Context, quit func()) (DoSingleton, *Singleton) {
+	var needSingleton = config.Config.Singleton
+	var single = NewInstance(config.Config.Name)
+	return func() error {
+		if needSingleton {
+			if err := single.Run(ctx, quit); err != nil {
+				return err
+			}
+			needSingleton = false
+		}
+		return nil
+	}, single
+}
+
+func NewInstance(name string) *Singleton {
 	_pipe := pipe.New()
 	addr := _pipe.Addr(name)
 
@@ -63,12 +80,12 @@ func (s *Singleton) RequestExit(ctx context.Context) error {
 	return nil
 }
 
-func (s *Singleton) Run(ctx context.Context, exit func()) error {
+func (s *Singleton) Run(ctx context.Context, quit func()) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	if err := s.RequestExit(ctx); err != nil {
-		log.Debugln("exit other instance failed:", err)
+		log.Debugln("quit other instance failed:", err)
 	} else {
 		time.Sleep(time.Second)
 	}
@@ -88,7 +105,7 @@ func (s *Singleton) Run(ctx context.Context, exit func()) error {
 			if err := server.Shutdown(ctx); err != nil {
 				log.Warnln("http server shutdown failed:", err)
 			}
-			exit()
+			quit()
 		})
 		server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
@@ -101,7 +118,7 @@ func (s *Singleton) Run(ctx context.Context, exit func()) error {
 		})
 		if err := pipe.HttpListen(listener, server); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Errorln("listen on pipe failed:", err)
-			exit()
+			quit()
 		}
 	}()
 	return nil
