@@ -100,7 +100,8 @@ func (s *Singleton) Run(ctx context.Context, exit func()) error {
 			}
 		})
 		if err := pipe.HttpListen(listener, server); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalln("listen on pipe failed:", err)
+			log.Errorln("listen on pipe failed:", err)
+			exit()
 		}
 	}()
 	return nil
