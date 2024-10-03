@@ -4,12 +4,13 @@ import (
 	"crypto/tls"
 	"github.com/Mmx233/BackoffCli/backoff"
 	"github.com/Mmx233/BackoffCli/internal/config"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"net/http"
 	"net/url"
 )
 
-func NewHealthCheckFn() (backoff.HealthChecker, error) {
+func NewHealthCheckFn(logger log.FieldLogger) (backoff.HealthChecker, error) {
 	var healthCheckFn backoff.ProbeHealthCheckFn
 
 	switch {
@@ -67,6 +68,7 @@ func NewHealthCheckFn() (backoff.HealthChecker, error) {
 
 	if healthCheckFn != nil {
 		return backoff.NewProbeHealthChecker(healthCheckFn, backoff.ProbeHealthCheckerConfig{
+			Logger:           logger,
 			CheckInterval:    config.Config.ProbeInterval,
 			InitialDelay:     config.Config.ProbeInitialDelay,
 			SuccessThreshold: config.Config.ProbeThresholdSuccess,

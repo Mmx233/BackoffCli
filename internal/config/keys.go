@@ -1,5 +1,5 @@
 package config
 
 const (
-	LogKeyComponent = "component"
+	LogKeyComponent = "comp"
 )

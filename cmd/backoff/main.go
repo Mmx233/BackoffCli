@@ -45,7 +45,7 @@ func main() {
 	defer singletonInstance.Shutdown()
 
 	backoffConf, err := config.Config.NewBackoffConf(logger.WithField(config.LogKeyComponent, "backoff")), error(nil)
-	backoffConf.HealthChecker, err = _backoff.NewHealthCheckFn()
+	backoffConf.HealthChecker, err = _backoff.NewHealthCheckFn(logger.WithField(config.LogKeyComponent, "health_checker"))
 	if err != nil {
 		logger.Warnln("create health checker failed, proceed without health check:", err)
 	}
