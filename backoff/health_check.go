@@ -58,7 +58,6 @@ func NewProbeHealthChecker(fn ProbeHealthCheckFn, conf ProbeHealthCheckerConfig)
 					}).Debugln("health check passed")
 					if success >= conf.SuccessThreshold {
 						errChan <- nil
-						return
 					}
 					failure = 0
 				}
