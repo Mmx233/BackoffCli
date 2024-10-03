@@ -20,6 +20,23 @@ type _Config struct {
 	FactorExponent   int
 	FactorConstInter time.Duration
 	FactorConstOuter time.Duration
+
+	ProbeInitialDelay     time.Duration
+	ProbeInterval         time.Duration
+	ProbeThresholdSuccess int
+	ProbeThresholdFailure int
+
+	TcpAddr    string
+	TcpTimeout time.Duration
+
+	HttpUrl            string
+	HttpMethod         string
+	HttpTimeout        time.Duration
+	HttpHeader         map[string]string
+	HttpInsecure       bool
+	HttpFollowRedirect bool
+	HttpStatusCode     int
+	HttpKeyword        string
 }
 
 func (c _Config) NewBackoffConf() backoff.Conf {

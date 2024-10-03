@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/Mmx233/BackoffCli/backoff"
+	_backoff "github.com/Mmx233/BackoffCli/internal/backoff"
 	"github.com/Mmx233/BackoffCli/internal/config"
 	"github.com/Mmx233/BackoffCli/internal/singleton"
 	"github.com/alecthomas/kingpin/v2"
@@ -23,30 +24,6 @@ func init() {
 	}
 }
 
-func NewBackoffFn(lastCmd chan *exec.Cmd, _singleton singleton.DoSingleton) backoff.Fn {
-	return func(ctx context.Context) error {
-		if err := _singleton(); err != nil {
-			return err
-		}
-
-		select {
-		case <-lastCmd:
-		default:
-		}
-
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		parts := strings.Fields(config.Config.Path)
-		cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		lastCmd <- cmd
-		return cmd.Run()
-	}
-}
-
 func main() {
 	quit := make(chan os.Signal)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -58,10 +35,17 @@ func main() {
 		}
 	}
 
-	_singleton, single := singleton.New(ctx, quitProcess)
-	defer single.Shutdown()
+	_singleton, singletonInstance := singleton.New(ctx, quitProcess)
+	defer singletonInstance.Shutdown()
+
+	backoffConf, err := config.Config.NewBackoffConf(), error(nil)
+	backoffConf.HealthChecker, err = _backoff.NewHealthCheckFn()
+	if err != nil {
+		log.Warnln("create health checker failed, proceed without health check:", err)
+	}
+
 	lastCmd := make(chan *exec.Cmd, 1)
-	backoffInstance := backoff.NewInstance(NewBackoffFn(lastCmd, _singleton), config.Config.NewBackoffConf())
+	backoffInstance := backoff.NewInstance(_backoff.NewBackoffFn(lastCmd, _singleton), backoffConf)
 	go func() {
 		if err := backoffInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Errorln("backoff run failed:", err)
