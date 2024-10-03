@@ -39,8 +39,9 @@ type _Config struct {
 	HttpKeyword        string
 }
 
-func (c _Config) NewBackoffConf() backoff.Conf {
+func (c _Config) NewBackoffConf(logger backoff.Logger) backoff.Conf {
 	return backoff.Conf{
+		Logger:           logger,
 		InitialDuration:  c.DurationInitial,
 		MaxDuration:      c.DurationMax,
 		MaxRetry:         uint(c.RetryMax),

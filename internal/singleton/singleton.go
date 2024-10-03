@@ -15,9 +15,9 @@ import (
 
 type DoSingleton func() error
 
-func New(ctx context.Context, quit func()) (DoSingleton, *Singleton) {
+func New(ctx context.Context, logger log.FieldLogger, quit func()) (DoSingleton, *Singleton) {
 	var needSingleton = config.Config.Singleton
-	var single = NewInstance(config.Config.Name)
+	var single = NewInstance(config.Config.Name, logger)
 	return func() error {
 		if needSingleton {
 			if err := single.Run(ctx, quit); err != nil {
@@ -29,7 +29,7 @@ func New(ctx context.Context, quit func()) (DoSingleton, *Singleton) {
 	}, single
 }
 
-func NewInstance(name string) *Singleton {
+func NewInstance(name string, logger log.FieldLogger) *Singleton {
 	_pipe := pipe.New()
 	addr := _pipe.Addr(name)
 
@@ -45,6 +45,7 @@ func NewInstance(name string) *Singleton {
 			},
 		},
 		Shutdown: func() {},
+		Logger:   logger,
 	}
 }
 
@@ -55,6 +56,8 @@ type Singleton struct {
 	Pipe       pipe.Pipe
 	HttpClient *http.Client
 	Shutdown   func()
+
+	Logger log.FieldLogger
 }
 
 func (s *Singleton) RequestExit(ctx context.Context) error {
@@ -85,7 +88,7 @@ func (s *Singleton) Run(ctx context.Context, quit func()) error {
 	defer cancel()
 
 	if err := s.RequestExit(ctx); err != nil {
-		log.Debugln("quit other instance failed:", err)
+		s.Logger.Debugln("quit other instance failed:", err)
 	} else {
 		time.Sleep(time.Second)
 	}
@@ -96,14 +99,14 @@ func (s *Singleton) Run(ctx context.Context, quit func()) error {
 	}
 
 	go func() {
-		log.Debugf("listening %s", s.Addr)
+		s.Logger.Debugf("listening %s", s.Addr)
 		server := &http.Server{}
 		s.Shutdown()
 		s.Shutdown = sync.OnceFunc(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := server.Shutdown(ctx); err != nil {
-				log.Warnln("http server shutdown failed:", err)
+				s.Logger.Warnln("http server shutdown failed:", err)
 			}
 			quit()
 		})
@@ -117,7 +120,7 @@ func (s *Singleton) Run(ctx context.Context, quit func()) error {
 			}
 		})
 		if err := pipe.HttpListen(listener, server); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Errorln("listen on pipe failed:", err)
+			s.Logger.Errorln("listen on pipe failed:", err)
 			quit()
 		}
 	}()

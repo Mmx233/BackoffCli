@@ -8,6 +8,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Mmx233/BackoffCli/backoff v0.0.0-20241003114231-8b0d8e75ed14
 	github.com/alecthomas/kingpin/v2 v2.4.0
+	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/sirupsen/logrus v1.9.3
 )
 

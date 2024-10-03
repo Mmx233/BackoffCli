@@ -8,6 +8,7 @@ import (
 	"github.com/Mmx233/BackoffCli/internal/config"
 	"github.com/Mmx233/BackoffCli/internal/singleton"
 	"github.com/alecthomas/kingpin/v2"
+	nested "github.com/antonfisher/nested-logrus-formatter"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
@@ -25,6 +26,11 @@ func init() {
 }
 
 func main() {
+	logger := log.New()
+	logger.SetFormatter(&nested.Formatter{
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+
 	quit := make(chan os.Signal)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -35,27 +41,27 @@ func main() {
 		}
 	}
 
-	_singleton, singletonInstance := singleton.New(ctx, quitProcess)
+	_singleton, singletonInstance := singleton.New(ctx, logger.WithField(config.LogKeyComponent, "singleton"), quitProcess)
 	defer singletonInstance.Shutdown()
 
-	backoffConf, err := config.Config.NewBackoffConf(), error(nil)
+	backoffConf, err := config.Config.NewBackoffConf(logger.WithField(config.LogKeyComponent, "backoff")), error(nil)
 	backoffConf.HealthChecker, err = _backoff.NewHealthCheckFn()
 	if err != nil {
-		log.Warnln("create health checker failed, proceed without health check:", err)
+		logger.Warnln("create health checker failed, proceed without health check:", err)
 	}
 
 	lastCmd := make(chan *exec.Cmd, 1)
 	backoffInstance := backoff.NewInstance(_backoff.NewBackoffFn(lastCmd, _singleton), backoffConf)
 	go func() {
 		if err := backoffInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			log.Errorln("backoff run failed:", err)
+			logger.Errorln("backoff run failed:", err)
 			quitProcess()
 		}
 	}()
 
 	signal.Notify(quit, os.Interrupt, os.Kill, syscall.SIGTERM)
 	<-quit
-	log.Infoln("Shutdown...")
+	logger.Infoln("Shutdown...")
 	cancel()
 
 	select {
