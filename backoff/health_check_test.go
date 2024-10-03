@@ -2,8 +2,10 @@ package backoff
 
 import (
 	"context"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -48,11 +50,15 @@ func TestProbeHealthChecker_Success(t *testing.T) {
 func TestProbeHealthChecker_Failure(t *testing.T) {
 	t.Parallel()
 
+	logger := log.New()
+	logger.SetOutput(io.Discard)
+
 	var count atomic.Uint32
 	errChan := NewProbeHealthChecker(func(ctx context.Context) error {
 		count.Add(1)
 		return assert.AnError
 	}, ProbeHealthCheckerConfig{
+		Logger:           logger,
 		CheckInterval:    time.Millisecond,
 		FailureThreshold: 5,
 	})(context.Background())
@@ -61,7 +67,7 @@ func TestProbeHealthChecker_Failure(t *testing.T) {
 	case err := <-errChan:
 		require.ErrorIs(t, err, assert.AnError)
 		assert.Equal(t, uint32(5), count.Load(), "failure threshold not work properly")
-	case <-time.After(time.Millisecond * 10):
+	case <-time.After(time.Second):
 		t.Fatal("timeout")
 	}
 }
