@@ -86,18 +86,14 @@ type HttpProbeHealthCheckConfig struct {
 func NewHttpProbeHealthCheckFn(conf HttpProbeHealthCheckConfig) ProbeHealthCheckFn {
 	client := conf.Client
 	if client == nil {
-		client = &http.Client{
-			Timeout: conf.Timeout,
-		}
+		client = &http.Client{}
 	}
+	client.Timeout = conf.Timeout
 	if client.Transport == nil {
-		client.Transport = &http.Transport{
-			DisableKeepAlives: true,
-			DialContext: (&net.Dialer{
-				Timeout: conf.Timeout,
-			}).DialContext,
-		}
+		client.Transport = &http.Transport{}
 	}
+	transport := client.Transport.(*http.Transport)
+	transport.DisableKeepAlives = true
 	if !conf.FollowRedirect {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
