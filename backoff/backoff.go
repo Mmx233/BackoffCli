@@ -60,7 +60,7 @@ func New(fn func(ctx context.Context) error, c Conf) Backoff {
 // Consider to use New or set values by hand.
 func NewInstance(fn func(ctx context.Context) error, conf Conf) Backoff {
 	if conf.Logger == nil {
-		conf.Logger = log.New()
+		conf.Logger = log.StandardLogger()
 	}
 	return Backoff{
 		Config: conf,
@@ -167,6 +167,7 @@ func (b Backoff) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-resetWait:
+			logger.Debugln("wait time reset by health check")
 			wait = b.Config.InitialDuration
 			goto waitFn
 		case err = <-errChan:

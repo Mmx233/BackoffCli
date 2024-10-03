@@ -3,6 +3,7 @@ package backoff
 import (
 	"bufio"
 	"context"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 type ProbeHealthCheckFn func(ctx context.Context) error
 
 type ProbeHealthCheckerConfig struct {
+	Logger           log.FieldLogger
 	CheckInterval    time.Duration
 	InitialDelay     time.Duration
 	SuccessThreshold int
@@ -20,6 +22,9 @@ type ProbeHealthCheckerConfig struct {
 }
 
 func NewProbeHealthChecker(fn ProbeHealthCheckFn, conf ProbeHealthCheckerConfig) HealthChecker {
+	if conf.Logger == nil {
+		conf.Logger = log.StandardLogger()
+	}
 	return func(ctx context.Context) <-chan error {
 		errChan := make(chan error, 1)
 		var success, failure int
@@ -36,6 +41,10 @@ func NewProbeHealthChecker(fn ProbeHealthCheckFn, conf ProbeHealthCheckerConfig)
 				err := fn(ctx)
 				if err != nil {
 					failure++
+					conf.Logger.WithFields(log.Fields{
+						"failure":   failure,
+						"threshold": conf.FailureThreshold,
+					}).Warnln("health check failed:", err)
 					if failure >= conf.FailureThreshold {
 						errChan <- err
 						return
@@ -43,6 +52,10 @@ func NewProbeHealthChecker(fn ProbeHealthCheckFn, conf ProbeHealthCheckerConfig)
 					success = 0
 				} else {
 					success++
+					conf.Logger.WithFields(log.Fields{
+						"success":   success,
+						"threshold": conf.SuccessThreshold,
+					}).Debugln("health check passed")
 					if success >= conf.SuccessThreshold {
 						errChan <- nil
 						return
