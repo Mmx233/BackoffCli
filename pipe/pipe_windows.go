@@ -20,8 +20,9 @@ func (_Pipe) Addr(name string) string {
 
 func (_Pipe) Listen(addr string) (net.Listener, error) {
 	return winio.ListenPipe(addr, &winio.PipeConfig{
-		InputBufferSize:  128,
-		OutputBufferSize: 128,
+		SecurityDescriptor: "D:(A;;GA;;;WD)",
+		InputBufferSize:    1024,
+		OutputBufferSize:   1024,
 	})
 }
 
