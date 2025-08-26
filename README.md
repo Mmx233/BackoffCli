@@ -51,6 +51,12 @@ Args:
 
 ```
 
+### Get Started
+
+```shell
+backoff --name=example -- /bin/sh -c "echo Hello World"
+```
+
 ### Backoff Wait Time Calculating Logic
 
 ```
