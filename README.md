@@ -6,7 +6,7 @@
 
 ```shell
 ~# go run .\cmd\backoff\ -h                      
-usage: backoff [<flags>] <path>
+usage: backoff [<flags>] [<commands>...]
 
 A command-line tool designed to implement and manage customizable backoff
 strategies for retrying failed operations efficiently..
@@ -47,7 +47,7 @@ Flags:
       --[no-]singleton          run with singleton parton with unique name
 
 Args:
-  <path>  program to run
+  [<commands>]  command to run
 
 ```
 
@@ -55,6 +55,7 @@ Args:
 
 ```shell
 backoff --name=example -- /bin/sh -c "echo Hello World"
+backoff --name=example-single-instance -- /bin/sh -c "sleep 3600"
 ```
 
 ### Backoff Wait Time Calculating Logic
