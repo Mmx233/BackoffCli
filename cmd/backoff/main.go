@@ -57,8 +57,8 @@ func main() {
 		go func() {
 			if err := backoffInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 				logger.Errorln("backoff run failed:", err)
-				quitProcess()
 			}
+			quitProcess()
 		}()
 	} else {
 		logger.Infoln("empty path, doing nothing")
