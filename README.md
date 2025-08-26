@@ -55,7 +55,7 @@ Args:
 
 ```shell
 backoff --name=example -- /bin/sh -c "echo Hello World"
-backoff --name=example-single-instance -- /bin/sh -c "sleep 3600"
+backoff --name=example-single-instance --singleton -- /bin/sh -c "sleep 3600"
 ```
 
 ### Backoff Wait Time Calculating Logic
