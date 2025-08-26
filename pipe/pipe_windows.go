@@ -3,9 +3,10 @@ package pipe
 import (
 	"context"
 	"fmt"
-	"github.com/Microsoft/go-winio"
 	"net"
 	"time"
+
+	"github.com/Microsoft/go-winio"
 )
 
 func New() Pipe {

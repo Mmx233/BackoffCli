@@ -3,12 +3,13 @@ package backoff
 import (
 	"bufio"
 	"context"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type ProbeHealthCheckFn func(ctx context.Context) error

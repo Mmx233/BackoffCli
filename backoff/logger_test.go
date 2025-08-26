@@ -2,9 +2,10 @@ package backoff
 
 import (
 	"context"
+	"testing"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestLogger(t *testing.T) {

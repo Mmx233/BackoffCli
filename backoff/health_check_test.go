@@ -2,9 +2,6 @@ package backoff
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net"
 	"net/http"
@@ -12,6 +9,10 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProbeHealthChecker_Success(t *testing.T) {

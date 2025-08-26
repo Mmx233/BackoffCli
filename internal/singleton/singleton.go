@@ -3,14 +3,15 @@ package singleton
 import (
 	"context"
 	"errors"
-	"github.com/Mmx233/BackoffCli/internal/config"
-	"github.com/Mmx233/BackoffCli/pipe"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/Mmx233/BackoffCli/internal/config"
+	"github.com/Mmx233/BackoffCli/pipe"
+	log "github.com/sirupsen/logrus"
 )
 
 type DoSingleton func() error

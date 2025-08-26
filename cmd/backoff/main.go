@@ -3,6 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path"
+	"strings"
+	"syscall"
+
 	"github.com/Mmx233/BackoffCli/backoff"
 	_backoff "github.com/Mmx233/BackoffCli/internal/backoff"
 	"github.com/Mmx233/BackoffCli/internal/config"
@@ -10,12 +17,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	log "github.com/sirupsen/logrus"
-	"os"
-	"os/exec"
-	"os/signal"
-	"path"
-	"strings"
-	"syscall"
 )
 
 func init() {

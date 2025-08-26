@@ -2,12 +2,13 @@ package backoff
 
 import (
 	"crypto/tls"
-	"github.com/Mmx233/BackoffCli/backoff"
-	"github.com/Mmx233/BackoffCli/internal/config"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"net/http"
 	"net/url"
+
+	"github.com/Mmx233/BackoffCli/backoff"
+	"github.com/Mmx233/BackoffCli/internal/config"
+	log "github.com/sirupsen/logrus"
 )
 
 func NewHealthCheckFn(logger log.FieldLogger) (backoff.HealthChecker, error) {

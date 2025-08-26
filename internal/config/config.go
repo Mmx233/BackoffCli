@@ -1,8 +1,9 @@
 package config
 
 import (
-	"github.com/Mmx233/BackoffCli/backoff"
 	"time"
+
+	"github.com/Mmx233/BackoffCli/backoff"
 )
 
 var Config _Config

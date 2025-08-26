@@ -2,12 +2,13 @@ package backoff
 
 import (
 	"context"
-	"github.com/Mmx233/BackoffCli/backoff"
-	"github.com/Mmx233/BackoffCli/internal/config"
-	"github.com/Mmx233/BackoffCli/internal/singleton"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/Mmx233/BackoffCli/backoff"
+	"github.com/Mmx233/BackoffCli/internal/config"
+	"github.com/Mmx233/BackoffCli/internal/singleton"
 )
 
 func NewBackoffFn(lastCmd chan *exec.Cmd, _singleton singleton.DoSingleton) backoff.Fn {

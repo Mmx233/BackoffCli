@@ -3,9 +3,10 @@ package backoff
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"runtime"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Backoff struct {
