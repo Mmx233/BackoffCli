@@ -10,7 +10,7 @@ var Config _Config
 
 type _Config struct {
 	Name      string
-	Path      string
+	Commands  []string
 	Singleton bool
 
 	DurationInitial time.Duration

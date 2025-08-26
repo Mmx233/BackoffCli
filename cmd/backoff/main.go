@@ -21,8 +21,8 @@ import (
 
 func init() {
 	kingpin.MustParse(config.NewCommands().Parse(os.Args[1:]))
-	if config.Config.Name == "" && config.Config.Path != "" {
-		config.Config.Name = "backoff-" + strings.Split(path.Base(strings.ReplaceAll(config.Config.Path, "\\", "/")), ".")[0]
+	if config.Config.Name == "" && len(config.Config.Commands) != 0 {
+		config.Config.Name = "backoff-" + strings.Split(path.Base(strings.ReplaceAll(config.Config.Commands[0], "\\", "/")), ".")[0]
 	}
 }
 
@@ -52,7 +52,7 @@ func main() {
 	}
 
 	lastCmd := make(chan *exec.Cmd, 1)
-	if config.Config.Path != "" {
+	if len(config.Config.Commands) != 0 {
 		backoffInstance := backoff.NewInstance(_backoff.NewBackoffFn(lastCmd, _singleton), backoffConf)
 		go func() {
 			if err := backoffInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {

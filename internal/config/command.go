@@ -36,7 +36,7 @@ func NewCommands() *kingpin.Application {
 
 	app.Flag("name", "pipe name for singleton, default generate by path").StringVar(&Config.Name)
 	app.Flag("singleton", "run with singleton parton with unique name").Default("false").BoolVar(&Config.Singleton)
-	app.Arg("path", "program to run").StringVar(&Config.Path)
+	app.Arg("commands", "command to run").StringsVar(&Config.Commands)
 
 	return app
 }

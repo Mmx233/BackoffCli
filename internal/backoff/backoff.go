@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/Mmx233/BackoffCli/backoff"
 	"github.com/Mmx233/BackoffCli/internal/config"
@@ -25,8 +24,7 @@ func NewBackoffFn(lastCmd chan *exec.Cmd, _singleton singleton.DoSingleton) back
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		parts := strings.Fields(config.Config.Path)
-		cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
+		cmd := exec.CommandContext(ctx, config.Config.Commands[0], config.Config.Commands[1:]...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
