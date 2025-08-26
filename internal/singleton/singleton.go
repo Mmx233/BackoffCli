@@ -31,6 +31,9 @@ func New(ctx context.Context, logger log.FieldLogger, quit func()) (DoSingleton,
 }
 
 func NewInstance(name string, logger log.FieldLogger) *Singleton {
+	if name == "" {
+		logger.Fatalln("Name or path must be specified")
+	}
 	_pipe := pipe.New()
 	addr := _pipe.Addr(name)
 

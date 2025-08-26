@@ -21,7 +21,7 @@ import (
 
 func init() {
 	kingpin.MustParse(config.NewCommands().Parse(os.Args[1:]))
-	if config.Config.Name == "" {
+	if config.Config.Name == "" && config.Config.Path != "" {
 		config.Config.Name = "backoff-" + strings.Split(path.Base(strings.ReplaceAll(config.Config.Path, "\\", "/")), ".")[0]
 	}
 }
@@ -52,17 +52,21 @@ func main() {
 	}
 
 	lastCmd := make(chan *exec.Cmd, 1)
-	backoffInstance := backoff.NewInstance(_backoff.NewBackoffFn(lastCmd, _singleton), backoffConf)
-	go func() {
-		if err := backoffInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			logger.Errorln("backoff run failed:", err)
-			quitProcess()
-		}
-	}()
+	if config.Config.Path != "" {
+		backoffInstance := backoff.NewInstance(_backoff.NewBackoffFn(lastCmd, _singleton), backoffConf)
+		go func() {
+			if err := backoffInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Errorln("backoff run failed:", err)
+				quitProcess()
+			}
+		}()
+	} else {
+		logger.Infoln("empty path, doing nothing")
+	}
 
 	signal.Notify(quit, os.Interrupt, os.Kill, syscall.SIGTERM)
 	<-quit
-	logger.Infoln("Shutdown...")
+	logger.Infoln("shutdown...")
 	cancel()
 
 	select {
