@@ -146,6 +146,9 @@ func (b Backoff) NextWait(wait time.Duration) time.Duration {
 }
 
 func (b Backoff) Run(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	logger := b.Config.Logger.WithContext(ctx)
 
 	retry := b.Config.MaxRetry
@@ -159,7 +162,6 @@ func (b Backoff) Run(ctx context.Context) error {
 	for {
 		var resetWait = make(chan struct{})
 		ctx := CtxResetWait{}.Set(ctx, resetWait)
-
 		errChan := b._CallFn(ctx)
 
 	waitFn:

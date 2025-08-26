@@ -32,18 +32,14 @@ func main() {
 		TimestampFormat: "2006-01-02 15:04:05",
 	})
 
-	quit := make(chan os.Signal)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	quitProcess := func() {
-		select {
-		case <-ctx.Done():
-		case quit <- syscall.SIGTERM:
-		}
-	}
 
-	_singleton, singletonInstance := singleton.New(ctx, logger.WithField(config.LogKeyComponent, "singleton"), quitProcess)
-	defer singletonInstance.Shutdown()
+	quit := make(chan os.Signal)
+	signal.Notify(quit, os.Interrupt, os.Kill, syscall.SIGTERM)
+
+	singletonInstance := singleton.New(ctx, logger.WithField(config.LogKeyComponent, "singleton"), cancel)
+	defer singletonInstance.Close()
 
 	backoffConf, err := config.Config.NewBackoffConf(logger.WithField(config.LogKeyComponent, "backoff")), error(nil)
 	backoffConf.HealthChecker, err = _backoff.NewHealthCheckFn(logger.WithField(config.LogKeyComponent, "health_checker"))
@@ -53,19 +49,23 @@ func main() {
 
 	lastCmd := make(chan *exec.Cmd, 1)
 	if len(config.Config.Commands) != 0 {
-		backoffInstance := backoff.NewInstance(_backoff.NewBackoffFn(lastCmd, _singleton), backoffConf)
+		backoffInstance := backoff.NewInstance(_backoff.NewBackoffFn(lastCmd), backoffConf)
 		go func() {
 			if err := backoffInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 				logger.Errorln("backoff run failed:", err)
 			}
-			quitProcess()
+			cancel()
 		}()
 	} else {
-		logger.Infoln("empty path, doing nothing")
+		logger.Infoln("no commands, doing nothing")
+		cancel()
 	}
 
-	signal.Notify(quit, os.Interrupt, os.Kill, syscall.SIGTERM)
-	<-quit
+	select {
+	case <-ctx.Done():
+	case <-quit:
+	}
+
 	logger.Infoln("shutdown...")
 	cancel()
 

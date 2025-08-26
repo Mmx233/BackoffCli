@@ -7,15 +7,10 @@ import (
 
 	"github.com/Mmx233/BackoffCli/backoff"
 	"github.com/Mmx233/BackoffCli/internal/config"
-	"github.com/Mmx233/BackoffCli/internal/singleton"
 )
 
-func NewBackoffFn(lastCmd chan *exec.Cmd, _singleton singleton.DoSingleton) backoff.Fn {
+func NewBackoffFn(lastCmd chan *exec.Cmd) backoff.Fn {
 	return func(ctx context.Context) error {
-		if err := _singleton(); err != nil {
-			return err
-		}
-
 		select {
 		case <-lastCmd:
 		default:

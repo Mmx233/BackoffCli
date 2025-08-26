@@ -16,23 +16,19 @@ import (
 
 type DoSingleton func() error
 
-func New(ctx context.Context, logger log.FieldLogger, quit func()) (DoSingleton, *Singleton) {
-	var needSingleton = config.Config.Singleton
+func New(ctx context.Context, logger log.FieldLogger, quit func()) *Singleton {
 	var single = NewInstance(config.Config.Name, logger)
-	return func() error {
-		if needSingleton {
-			if err := single.Run(ctx, quit); err != nil {
-				return err
-			}
-			needSingleton = false
+	if config.Config.Singleton {
+		if err := single.Run(ctx, quit); err != nil {
+			logger.Fatalln("run singleton failed:", err)
 		}
-		return nil
-	}, single
+	}
+	return single
 }
 
 func NewInstance(name string, logger log.FieldLogger) *Singleton {
 	if name == "" {
-		logger.Fatalln("Name or command must be specified")
+		logger.Fatalln("name or command must be specified")
 	}
 	_pipe := pipe.New()
 	addr := _pipe.Addr(name)
@@ -105,7 +101,6 @@ func (s *Singleton) Run(ctx context.Context, quit func()) error {
 	go func() {
 		s.Logger.Debugf("listening %s", s.Addr)
 		server := &http.Server{}
-		s.Shutdown()
 		s.Shutdown = sync.OnceFunc(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
